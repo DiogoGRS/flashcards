@@ -1,0 +1,122 @@
+[
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Qual a principal diferença entre watch() e watchEffect()?",
+    "options": [
+      "watch() é reativo, watchEffect() não é",
+      "watch() é lazy e exige declarar a fonte; watchEffect() roda imediatamente e rastreia dependências automaticamente",
+      "watchEffect() só funciona com refs; watch() funciona com qualquer coisa",
+      "São idênticos, watchEffect() é só um alias"
+    ],
+    "correct_answer": 1,
+    "explanation": "watch() é lazy por padrão (só dispara quando a fonte muda) e exige que você declare explicitamente o que observar. watchEffect() roda na hora e rastreia automaticamente qualquer estado reativo acessado dentro do corpo da função. watch() também te dá acesso a newValue e oldValue."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Qual é a assinatura correta do watch() para uma única fonte?",
+    "options": [
+      "watch(callback, source, options)",
+      "watch(source, callback, options)",
+      "watch(options, source, callback)",
+      "watch(source, options, callback)"
+    ],
+    "correct_answer": 1,
+    "explanation": "A assinatura é watch(source, callback, options?). O callback recebe (newValue, oldValue, onCleanup). O terceiro argumento (options) é opcional."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Quais destes são sources VÁLIDOS para o watch()?",
+    "options": [
+      "Apenas refs",
+      "Apenas objetos reactive",
+      "Ref, getter function, objeto reactive, ou um array dos anteriores",
+      "Qualquer variável JavaScript"
+    ],
+    "correct_answer": 2,
+    "explanation": "watch() aceita: uma ref, uma getter function (ex: () => state.count), um objeto reactive, ou um array combinando essas opções. Variáveis comuns não-reativas não funcionam."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Por que este código NÃO funciona?\n\nconst obj = reactive({ count: 0 })\nwatch(obj.count, (c) => console.log(c))",
+    "options": [
+      "Falta a opção immediate",
+      "obj.count é um número primitivo desreferenciado, perdendo a reatividade — precisa ser uma getter",
+      "reactive() não aceita números",
+      "Falta o segundo argumento"
+    ],
+    "correct_answer": 1,
+    "explanation": "Ao passar obj.count, você passa o valor primitivo (0) — não há referência reativa para rastrear. A solução é uma getter: watch(() => obj.count, ...). A getter adia a leitura para que ela aconteça dentro do contexto rastreado pelo Vue, permitindo que o Proxy do reactive intercepte e registre a dependência."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Quais argumentos o callback do watch() recebe?",
+    "options": [
+      "(value)",
+      "(newValue, oldValue)",
+      "(newValue, oldValue, onCleanup)",
+      "(event, newValue, oldValue)"
+    ],
+    "correct_answer": 2,
+    "explanation": "O callback recebe três argumentos: o novo valor, o valor antigo, e uma função onCleanup para registrar limpezas que rodam antes da próxima execução (útil para cancelar requests pendentes)."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Qual opção faz o callback rodar IMEDIATAMENTE na criação do watcher?",
+    "options": [
+      "eager: true",
+      "deep: true",
+      "immediate: true",
+      "flush: 'sync'"
+    ],
+    "correct_answer": 2,
+    "explanation": "{ immediate: true } força o callback a rodar logo na criação do watcher, antes de qualquer mudança. Na primeira execução, oldValue será undefined. Funciona como 'comportamento normal + 1 disparo inicial'."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Sobre a opção deep, o que é VERDADE?",
+    "options": [
+      "Sempre é necessária para watch()",
+      "Quando você passa um objeto reactive direto para watch(), ele já é deep automaticamente",
+      "deep só funciona com refs",
+      "deep substitui o immediate"
+    ],
+    "correct_answer": 1,
+    "explanation": "Passando um objeto reactive direto (watch(state, ...)), o deep é implícito. Mas se você usa uma getter que retorna um objeto reactive (() => state.someObj), precisa passar { deep: true } explicitamente para detectar mutações aninhadas. No 3.5+ deep aceita um número definindo a profundidade máxima. Regra geral: deep automático só quando você passa o reactive diretamente como source."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Qual é o flush PADRÃO do watch() e quando o callback dispara?",
+    "options": [
+      "'sync' — síncrono, na hora da mutação",
+      "'post' — após o DOM ser atualizado",
+      "'pre' — após updates do componente pai, ANTES do DOM do componente dono ser atualizado",
+      "Não tem padrão, é obrigatório passar"
+    ],
+    "correct_answer": 2,
+    "explanation": "O default é 'pre'. Por isso, se você ler o DOM do próprio componente dentro do callback, ele estará em estado pré-atualização. Os callbacks também são batched (agrupados) para evitar disparos duplicados."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Você precisa acessar o DOM JÁ atualizado pelo Vue dentro do callback. Qual flush usar?",
+    "options": [
+      "flush: 'pre'",
+      "flush: 'post'",
+      "flush: 'sync'",
+      "flush: 'dom'"
+    ],
+    "correct_answer": 1,
+    "explanation": "flush: 'post' adia o callback para depois que o Vue atualizou o DOM. Existe também o atalho watchPostEffect() para watchEffect com flush post."
+  },
+  {
+    "topics": ["frontend", "vue", "watch"],
+    "question": "Você usou flush: 'sync' e resolveu seu problema. O que ele faz, e qual o RISCO principal?",
+    "options": [
+      "Roda em outro thread; risco é não executar",
+      "Dispara síncrono na hora da mutação reativa, ANTES de qualquer update do Vue, sem batching — risco de performance se a fonte mudar muitas vezes seguidas",
+      "Espera todos os watchers terminarem; risco é deadlock",
+      "Roda só uma vez; risco é perder mudanças subsequentes"
+    ],
+    "correct_answer": 1,
+    "explanation": "flush: 'sync' dispara o callback IMEDIATAMENTE quando a dependência muda, sem batching e sem esperar o ciclo de update do Vue. Útil para invalidar caches, capturar valores intermediários antes de qualquer re-render, ou reagir a CADA mudança individualmente. A própria documentação alerta: evite em arrays ou estados que mudam muitas vezes em sequência — cada mutação dispara o callback. Existe também o atalho watchSyncEffect()."
+  }
+]
