@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>flashCards</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <div x-data="flashApp()" x-init="boot()" class="max-w-6xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold tracking-tight">flashCards</h1>
+      <nav class="flex gap-2">
+        <button @click="view = 'review'" :class="tabClass('review')">Revisar</button>
+        <button @click="view = 'browse'" :class="tabClass('browse')">Cards</button>
+        <button @click="view = 'create'; resetForm()" :class="tabClass('create')">Novo</button>
+      </nav>
+    </header>
+
+    <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+      <aside class="bg-slate-900 rounded-lg p-4 h-fit">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-slate-300">Tópicos</h2>
+          <button @click="loadTopics()" class="text-xs text-slate-500 hover:text-slate-300">↻</button>
+        </div>
+        <button
+          @click="selectTopic(null)"
+          :class="topicPath === null ? 'bg-indigo-600' : 'hover:bg-slate-800'"
+          class="w-full text-left px-2 py-1 rounded text-sm mb-2"
+        >Todos</button>
+        <template x-if="Object.keys(topics).length === 0">
+          <p class="text-xs text-slate-500">nenhum tópico ainda</p>
+        </template>
+        <template x-for="[name, node] in Object.entries(topics)" :key="name">
+          <div>
+            <template x-data="{ trail: [name], children: node }" x-init="$el.dataset.ready = '1'"></template>
+            <div x-data="{ trail: [name], children: node._children, count: node._count }">
+              <button
+                @click="selectTopic(trail.join('/'))"
+                :class="topicPath === trail.join('/') ? 'bg-indigo-600' : 'hover:bg-slate-800'"
+                class="w-full text-left px-2 py-1 rounded text-sm flex justify-between"
+              >
+                <span x-text="name"></span>
+                <span class="text-slate-500 text-xs" x-text="count"></span>
+              </button>
+              <div class="pl-3 border-l border-slate-800 ml-2 mt-1" x-data="{ children, trail }">
+                <template x-for="[cname, cnode] in Object.entries(children)" :key="cname">
+                  <div x-data="{ subTrail: [...trail, cname], cnode }">
+                    <button
+                      @click="selectTopic(subTrail.join('/'))"
+                      :class="topicPath === subTrail.join('/') ? 'bg-indigo-600' : 'hover:bg-slate-800'"
+                      class="w-full text-left px-2 py-1 rounded text-sm flex justify-between"
+                    >
+                      <span x-text="cname"></span>
+                      <span class="text-slate-500 text-xs" x-text="cnode._count"></span>
+                    </button>
+                    <div class="pl-3 border-l border-slate-800 ml-2 mt-1" x-show="Object.keys(cnode._children).length">
+                      <template x-for="[gname, gnode] in Object.entries(cnode._children)" :key="gname">
+                        <button
+                          @click="selectTopic([...subTrail, gname].join('/'))"
+                          :class="topicPath === [...subTrail, gname].join('/') ? 'bg-indigo-600' : 'hover:bg-slate-800'"
+                          class="w-full text-left px-2 py-1 rounded text-sm flex justify-between"
+                        >
+                          <span x-text="gname"></span>
+                          <span class="text-slate-500 text-xs" x-text="gnode._count"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </aside>
+
+      <main>
+        <p class="text-sm text-slate-400 mb-4" x-show="topicPath">
+          filtrando: <span class="text-indigo-300" x-text="topicPath"></span>
+        </p>
+
+        <!-- REVIEW -->
+        <section x-show="view === 'review'">
+          <template x-if="dueCards.length === 0">
+            <div class="bg-slate-900 rounded-lg p-8 text-center">
+              <p class="text-slate-400">Nenhum card pendente para revisão. ✨</p>
+            </div>
+          </template>
+          <template x-if="dueCards.length > 0 && current">
+            <div class="bg-slate-900 rounded-lg p-6">
+              <p class="text-xs uppercase tracking-wider text-slate-500 mb-2"
+                 x-text="(current.topics || []).join(' › ') || 'sem tópico'"></p>
+              <h2 class="text-xl font-medium mb-6" x-text="current.question"></h2>
+
+              <div class="grid gap-2 mb-6">
+                <template x-for="(opt, idx) in current.options" :key="idx">
+                  <button
+                    @click="pickAnswer(idx)"
+                    :disabled="answered"
+                    :class="optionClass(idx)"
+                    class="w-full text-left p-3 rounded border transition"
+                    x-text="opt"
+                  ></button>
+                </template>
+              </div>
+
+              <div
+                x-show="answered"
+                :class="selected === current.correct_answer
+                  ? 'border-emerald-500 bg-emerald-900/30 text-emerald-100'
+                  : 'border-rose-500 bg-rose-900/30 text-rose-100'"
+                class="border rounded p-4 mb-6"
+              >
+                <p class="font-semibold mb-1">
+                  <span x-show="selected === current.correct_answer">Correto.</span>
+                  <span x-show="selected !== current.correct_answer">Errado.</span>
+                </p>
+                <p class="text-sm whitespace-pre-wrap"
+                   x-text="current.explanation || 'Sem explicação cadastrada para este card.'"></p>
+              </div>
+
+              <div x-show="answered" class="border-t border-slate-800 pt-4">
+                <p class="text-sm text-slate-400 mb-3">Quão difícil foi?</p>
+                <div class="flex gap-2">
+                  <button @click="submitReview('easy')" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500">Fácil (+7d)</button>
+                  <button @click="submitReview('medium')" class="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500">Médio (+3d)</button>
+                  <button @click="submitReview('hard')" class="px-4 py-2 rounded bg-rose-600 hover:bg-rose-500">Difícil (+1d)</button>
+                </div>
+              </div>
+
+              <p class="text-xs text-slate-500 mt-4">
+                <span x-text="dueCards.length"></span> card(s) na fila
+              </p>
+            </div>
+          </template>
+        </section>
+
+        <!-- BROWSE -->
+        <section x-show="view === 'browse'">
+          <p class="text-sm text-slate-500 mb-3" x-text="allCards.length + ' card(s)'"></p>
+          <div class="space-y-3">
+            <template x-for="card in allCards" :key="card.id">
+              <div class="bg-slate-900 rounded-lg p-4">
+                <div class="flex justify-between items-start gap-3 mb-2">
+                  <p class="text-xs text-slate-500" x-text="(card.topics || []).join(' › ') || 'sem tópico'"></p>
+                  <div class="flex gap-2 text-xs">
+                    <span class="text-slate-500" x-text="'próx: ' + formatDate(card.next_review)"></span>
+                    <button @click="deleteCard(card.id)" class="text-rose-400 hover:text-rose-300">excluir</button>
+                  </div>
+                </div>
+                <p class="font-medium mb-2" x-text="card.question"></p>
+                <ul class="text-sm text-slate-400 space-y-1">
+                  <template x-for="(opt, i) in card.options" :key="i">
+                    <li :class="i === card.correct_answer ? 'text-emerald-400' : ''">
+                      <span x-text="(i === card.correct_answer ? '✓ ' : '· ') + opt"></span>
+                    </li>
+                  </template>
+                </ul>
+              </div>
+            </template>
+          </div>
+        </section>
+
+        <!-- CREATE -->
+        <section x-show="view === 'create'">
+          <form @submit.prevent="submitNew()" class="bg-slate-900 rounded-lg p-6 space-y-4">
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Tópicos (separe com /)</label>
+              <input
+                x-model="form.topicsRaw"
+                placeholder="ex: frontend/vue/watch"
+                class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Pergunta</label>
+              <textarea
+                x-model="form.question"
+                rows="2"
+                class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+              ></textarea>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Opções (clique no radio para marcar a correta)</label>
+              <template x-for="(opt, i) in form.options" :key="i">
+                <div class="flex gap-2 mb-2">
+                  <input
+                    type="radio"
+                    :value="i"
+                    x-model.number="form.correct_answer"
+                    class="accent-indigo-500"
+                  />
+                  <input
+                    x-model="form.options[i]"
+                    :placeholder="'opção ' + (i+1)"
+                    class="flex-1 bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    @click="form.options.splice(i, 1)"
+                    x-show="form.options.length > 2"
+                    class="text-rose-400 px-2"
+                  >×</button>
+                </div>
+              </template>
+              <button type="button" @click="form.options.push('')" class="text-sm text-indigo-400 hover:text-indigo-300">
+                + adicionar opção
+              </button>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Explicação (opcional)</label>
+              <textarea
+                x-model="form.explanation"
+                rows="3"
+                placeholder="exibida após responder, com fundo verde (acerto) ou vermelho (erro)"
+                class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+              ></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <button type="submit" class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500">Criar card</button>
+            </div>
+            <p x-show="formError" x-text="formError" class="text-rose-400 text-sm"></p>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

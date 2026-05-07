@@ -1,0 +1,13 @@
+services:
+  flashcards:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - flashcards_data:/app/data
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite:////app/data/flashcards.db
+
+volumes:
+  flashcards_data:
