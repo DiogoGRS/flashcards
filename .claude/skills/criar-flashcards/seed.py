@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bulk seed flashcards via the local API.
-
+To do: 
+    Criar um arquivo de snapshot das questões do banco e versionar no git.
 Usage:
     python3 seed.py cards.json [--api http://localhost:8000]
 
