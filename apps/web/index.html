@@ -27,6 +27,15 @@
         <button @click="editCard = null" class="text-slate-400 hover:text-slate-200 text-xl leading-none">✕</button>
       </div>
 
+      <div class="flex gap-2">
+        <button type="button" @click="editCardType = 'multiple_choice'"
+          :class="editCardType === 'multiple_choice' ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'"
+          class="px-3 py-1.5 rounded text-sm transition-colors">Múltipla Escolha</button>
+        <button type="button" @click="editCardType = 'reveal'"
+          :class="editCardType === 'reveal' ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'"
+          class="px-3 py-1.5 rounded text-sm transition-colors">Revelar Resposta</button>
+      </div>
+
       <div>
         <label class="block text-sm text-slate-400 mb-1">Tópicos (separe com /)</label>
         <input
@@ -42,7 +51,7 @@
           class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
         ></textarea>
       </div>
-      <div>
+      <div x-show="editCardType === 'multiple_choice'">
         <label class="block text-sm text-slate-400 mb-1">Opções (radio = correta)</label>
         <template x-for="(opt, i) in editForm.options" :key="i">
           <div class="flex gap-2 mb-2">
@@ -65,7 +74,8 @@
         </button>
       </div>
       <div>
-        <label class="block text-sm text-slate-400 mb-1">Explicação (opcional)</label>
+        <label class="block text-sm text-slate-400 mb-1"
+          x-text="editCardType === 'reveal' ? 'Resposta (revelada)' : 'Explicação (opcional)'"></label>
         <textarea
           x-model="editForm.explanation"
           rows="3"
@@ -258,7 +268,8 @@
               </div>
               <div class="text-xl font-medium mb-6 card-content" x-html="renderMd(current.question)"></div>
 
-              <div class="grid gap-2 mb-6">
+              <!-- Opções (múltipla escolha) -->
+              <div x-show="!current.card_type || current.card_type === 'multiple_choice'" class="grid gap-2 mb-6">
                 <template x-for="(opt, idx) in current.options" :key="idx">
                   <button
                     @click="pickAnswer(idx)"
@@ -272,8 +283,18 @@
                 </template>
               </div>
 
-              <!-- Feedback -->
-              <template x-if="answered && current">
+              <!-- Botão revelar (reveal cards) -->
+              <div x-show="current.card_type === 'reveal' && !revealed" class="flex justify-center mb-6">
+                <button
+                  @click="revealAnswer()"
+                  class="px-6 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 font-medium transition-colors"
+                >
+                  Revelar Resposta <kbd class="text-xs opacity-60 font-mono ml-1">[R]</kbd>
+                </button>
+              </div>
+
+              <!-- Feedback múltipla escolha -->
+              <template x-if="answered && current && (!current.card_type || current.card_type === 'multiple_choice')">
                 <div
                   :class="selected === current.correct_answer
                     ? 'border-emerald-500 bg-emerald-900/30 text-emerald-100'
@@ -288,6 +309,14 @@
                   </p>
                   <div class="text-sm card-content"
                        x-html="current.explanation ? renderMd(current.explanation) : 'Sem explicação cadastrada para este card.'"></div>
+                </div>
+              </template>
+
+              <!-- Resposta revelada (reveal cards) -->
+              <template x-if="revealed && current && current.card_type === 'reveal'">
+                <div class="border border-slate-600 bg-slate-800/50 rounded p-4 mb-6">
+                  <div class="text-sm card-content"
+                       x-html="current.explanation ? renderMd(current.explanation) : 'Sem resposta cadastrada para este card.'"></div>
                 </div>
               </template>
 
@@ -415,6 +444,14 @@
         <!-- CREATE -->
         <section x-show="view === 'create'">
           <form @submit.prevent="submitNew()" class="bg-slate-900 rounded-lg p-6 space-y-4">
+            <div class="flex gap-2">
+              <button type="button" @click="newCardType = 'multiple_choice'"
+                :class="newCardType === 'multiple_choice' ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'"
+                class="px-3 py-1.5 rounded text-sm transition-colors">Múltipla Escolha</button>
+              <button type="button" @click="newCardType = 'reveal'"
+                :class="newCardType === 'reveal' ? 'bg-indigo-600' : 'bg-slate-800 hover:bg-slate-700'"
+                class="px-3 py-1.5 rounded text-sm transition-colors">Revelar Resposta</button>
+            </div>
             <div>
               <label class="block text-sm text-slate-400 mb-1">Tópicos (separe com /)</label>
               <input
@@ -431,7 +468,7 @@
                 class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
               ></textarea>
             </div>
-            <div>
+            <div x-show="newCardType === 'multiple_choice'">
               <label class="block text-sm text-slate-400 mb-1">Opções (clique no radio para marcar a correta)</label>
               <template x-for="(opt, i) in form.options" :key="i">
                 <div class="flex gap-2 mb-2">
@@ -454,11 +491,12 @@
               </button>
             </div>
             <div>
-              <label class="block text-sm text-slate-400 mb-1">Explicação (opcional)</label>
+              <label class="block text-sm text-slate-400 mb-1"
+                x-text="newCardType === 'reveal' ? 'Resposta (revelada)' : 'Explicação (opcional)'"></label>
               <textarea
                 x-model="form.explanation"
                 rows="3"
-                placeholder="exibida após responder"
+                :placeholder="newCardType === 'reveal' ? 'resposta que será revelada ao clicar' : 'exibida após responder'"
                 class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
               ></textarea>
             </div>

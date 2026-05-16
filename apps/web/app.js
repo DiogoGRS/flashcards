@@ -8,6 +8,7 @@ function flashApp() {
     currentIdx: 0,
     selected: null,
     answered: false,
+    revealed: false,
 
     // Session tracking
     sessionStarted: false,
@@ -18,6 +19,7 @@ function flashApp() {
 
     // Edit modal
     editCard: null,
+    editCardType: "multiple_choice",
     editForm: { topicsRaw: "", question: "", options: [], correct_answer: 0, explanation: "" },
     editError: "",
 
@@ -25,6 +27,7 @@ function flashApp() {
     stats: null,
 
     // Create form
+    newCardType: "multiple_choice",
     form: {
       topicsRaw: "",
       question: "",
@@ -36,6 +39,10 @@ function flashApp() {
 
     get current() {
       return this.dueCards[this.currentIdx] || null;
+    },
+
+    get isReveal() {
+      return this.current?.card_type === "reveal";
     },
 
     get cardPosition() {
@@ -79,9 +86,13 @@ function flashApp() {
 
         if (this.view === "review" && this.current) {
           if (!this.answered) {
-            const num = parseInt(e.key);
-            if (num >= 1 && num <= (this.current.options || []).length) {
-              this.pickAnswer(num - 1);
+            if (this.isReveal) {
+              if (e.key === "r" || e.key === "R") this.revealAnswer();
+            } else {
+              const num = parseInt(e.key);
+              if (num >= 1 && num <= (this.current.options || []).length) {
+                this.pickAnswer(num - 1);
+              }
             }
           } else {
             if (e.key === "e" || e.key === "E") this.submitReview("easy");
@@ -125,6 +136,7 @@ function flashApp() {
       this.currentIdx = 0;
       this.selected = null;
       this.answered = false;
+      this.revealed = false;
       this.sessionDone = false;
       this.sessionStarted = true;
       this.sessionStats = { total: this.dueCards.length, correct: 0, wrong: 0 };
@@ -143,6 +155,12 @@ function flashApp() {
       this.answered = true;
     },
 
+    revealAnswer() {
+      if (this.answered) return;
+      this.revealed = true;
+      this.answered = true;
+    },
+
     optionClass(idx) {
       if (!this.answered || !this.current) {
         return "border-slate-700 hover:border-indigo-500 bg-slate-800";
@@ -157,12 +175,15 @@ function flashApp() {
       if (!this.answered) return;
       const card = this.current;
       if (!card) return;
-      const correct = this.selected === card.correct_answer;
+      const correct = card.card_type === "reveal"
+        ? difficulty !== "hard"
+        : this.selected === card.correct_answer;
 
       // Advance UI synchronously so a rapid second click can't re-enter
       // this handler for the same card.
       this.answered = false;
       this.selected = null;
+      this.revealed = false;
       this.dueCards.splice(this.currentIdx, 1);
 
       if (correct) {
@@ -208,6 +229,7 @@ function flashApp() {
       this.dueTotal = Math.max(0, this.dueTotal - 1);
       this.selected = null;
       this.answered = false;
+      this.revealed = false;
       if (this.dueCards.length === 0) {
         this.sessionDone = true;
       } else if (this.currentIdx >= this.dueCards.length) {
@@ -219,11 +241,12 @@ function flashApp() {
     openEdit(card) {
       this.editCard = card;
       this.editError = "";
+      this.editCardType = card.card_type || "multiple_choice";
       this.editForm = {
         topicsRaw: (card.topics || []).join("/"),
         question: card.question,
-        options: [...card.options],
-        correct_answer: card.correct_answer,
+        options: card.options?.length ? [...card.options] : ["", ""],
+        correct_answer: card.correct_answer ?? 0,
         explanation: card.explanation || "",
       };
     },
@@ -234,31 +257,37 @@ function flashApp() {
         .split("/")
         .map((s) => s.trim())
         .filter(Boolean);
-      const options = this.editForm.options.map((o) => o.trim()).filter(Boolean);
 
       if (!this.editForm.question.trim()) {
         this.editError = "pergunta obrigatória";
         return;
       }
-      if (options.length < 2) {
-        this.editError = "mínimo 2 opções";
-        return;
-      }
-      if (this.editForm.correct_answer >= options.length) {
-        this.editError = "marque qual opção é a correta";
-        return;
+
+      const body = {
+        topics,
+        question: this.editForm.question.trim(),
+        card_type: this.editCardType,
+        explanation: this.editForm.explanation.trim() || null,
+      };
+
+      if (this.editCardType === "multiple_choice") {
+        const options = this.editForm.options.map((o) => o.trim()).filter(Boolean);
+        if (options.length < 2) {
+          this.editError = "mínimo 2 opções";
+          return;
+        }
+        if (this.editForm.correct_answer >= options.length) {
+          this.editError = "marque qual opção é a correta";
+          return;
+        }
+        body.options = options;
+        body.correct_answer = this.editForm.correct_answer;
       }
 
       const r = await fetch(`/api/cards/${this.editCard.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topics,
-          question: this.editForm.question.trim(),
-          options,
-          correct_answer: this.editForm.correct_answer,
-          explanation: this.editForm.explanation.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!r.ok) {
@@ -290,6 +319,7 @@ function flashApp() {
     },
 
     resetForm() {
+      this.newCardType = "multiple_choice";
       this.form = {
         topicsRaw: "",
         question: "",
@@ -306,31 +336,37 @@ function flashApp() {
         .split("/")
         .map((s) => s.trim())
         .filter(Boolean);
-      const options = this.form.options.map((o) => o.trim()).filter(Boolean);
 
       if (!this.form.question.trim()) {
         this.formError = "pergunta obrigatória";
         return;
       }
-      if (options.length < 2) {
-        this.formError = "mínimo 2 opções";
-        return;
-      }
-      if (this.form.correct_answer >= options.length) {
-        this.formError = "marque qual opção é a correta";
-        return;
+
+      const body = {
+        topics,
+        question: this.form.question.trim(),
+        card_type: this.newCardType,
+        explanation: this.form.explanation.trim() || null,
+      };
+
+      if (this.newCardType === "multiple_choice") {
+        const options = this.form.options.map((o) => o.trim()).filter(Boolean);
+        if (options.length < 2) {
+          this.formError = "mínimo 2 opções";
+          return;
+        }
+        if (this.form.correct_answer >= options.length) {
+          this.formError = "marque qual opção é a correta";
+          return;
+        }
+        body.options = options;
+        body.correct_answer = this.form.correct_answer;
       }
 
       const r = await fetch("/api/cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topics,
-          question: this.form.question.trim(),
-          options,
-          correct_answer: this.form.correct_answer,
-          explanation: this.form.explanation.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));

@@ -22,6 +22,7 @@ def _to_out(card: Card) -> CardOut:
         id=card.id,
         topics=card.topics or [],
         question=card.question,
+        card_type=card.card_type or "multiple_choice",
         options=card.options or [],
         correct_answer=card.correct_answer,
         explanation=card.explanation,
@@ -71,11 +72,13 @@ def get_card(card_id: int, session: Session = Depends(get_session)):
 
 @router.post("/cards", response_model=CardOut, status_code=201)
 def create_card(payload: CardCreate, session: Session = Depends(get_session)):
+    is_mc = payload.card_type == "multiple_choice"
     card = Card(
         topics=payload.topics,
         question=payload.question.strip(),
-        options=payload.options,
-        correct_answer=payload.correct_answer,
+        card_type=payload.card_type,
+        options=payload.options if is_mc else [],
+        correct_answer=payload.correct_answer if is_mc else None,
         explanation=payload.explanation,
         difficulty=payload.difficulty,
     )
@@ -92,12 +95,13 @@ def update_card(card_id: int, payload: CardUpdate, session: Session = Depends(ge
         raise HTTPException(404, "card not found")
 
     data = payload.model_dump(exclude_unset=True)
-    if "options" in data or "correct_answer" in data:
+    effective_type = data.get("card_type", card.card_type or "multiple_choice")
+    if effective_type == "multiple_choice" and ("options" in data or "correct_answer" in data):
         new_options = data.get("options", card.options)
         new_correct = data.get("correct_answer", card.correct_answer)
         if len(new_options) < 2:
             raise HTTPException(400, "at least 2 options required")
-        if not (0 <= new_correct < len(new_options)):
+        if new_correct is None or not (0 <= new_correct < len(new_options)):
             raise HTTPException(400, "correct_answer index out of range")
 
     for k, v in data.items():
@@ -151,6 +155,7 @@ def export_cards(session: Session = Depends(get_session)):
         {
             "topics": card.topics or [],
             "question": card.question,
+            "card_type": card.card_type or "multiple_choice",
             "options": card.options or [],
             "correct_answer": card.correct_answer,
             "explanation": card.explanation,

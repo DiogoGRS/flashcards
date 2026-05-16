@@ -12,8 +12,9 @@ class Card(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     topics: list[str] = Field(sa_column=Column(JSON), default_factory=list)
     question: str
+    card_type: str = Field(default="multiple_choice")
     options: list[str] = Field(sa_column=Column(JSON), default_factory=list)
-    correct_answer: int
+    correct_answer: Optional[int] = Field(default=None)
     explanation: Optional[str] = Field(default=None)
     difficulty: Optional[str] = Field(default=None)
     next_review: datetime = Field(default_factory=utcnow, index=True)
