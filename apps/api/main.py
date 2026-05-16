@@ -34,8 +34,9 @@ def _seed_if_empty() -> None:
             session.add(Card(
                 topics=data.get("topics", []),
                 question=data["question"],
-                options=data["options"],
-                correct_answer=data["correct_answer"],
+                card_type=data.get("card_type", "multiple_choice"),
+                options=data.get("options", []),
+                correct_answer=data.get("correct_answer"),
                 explanation=data.get("explanation"),
                 difficulty=data.get("difficulty"),
             ))
