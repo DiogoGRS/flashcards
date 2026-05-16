@@ -96,8 +96,8 @@ def update_card(card_id: int, payload: CardUpdate, session: Session = Depends(ge
 
     data = payload.model_dump(exclude_unset=True)
     effective_type = data.get("card_type", card.card_type or "multiple_choice")
-    if effective_type == "multiple_choice" and ("options" in data or "correct_answer" in data):
-        new_options = data.get("options", card.options)
+    if effective_type == "multiple_choice":
+        new_options = data.get("options", card.options or [])
         new_correct = data.get("correct_answer", card.correct_answer)
         if len(new_options) < 2:
             raise HTTPException(400, "at least 2 options required")
