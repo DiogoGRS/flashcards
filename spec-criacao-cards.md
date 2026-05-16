@@ -10,8 +10,24 @@ Documento de referência para o Claude quando o usuário pedir para gerar/seedar
 | `question` | `str` | sim | Pergunta direta, em português. Sem "qual das alternativas..."; prefira perguntas que testem entendimento real. |
 | `options` | `list[str]` | sim | Mínimo 2, ideal 3–4. Distratores plausíveis (não óbvios). Sem "todas as anteriores". |
 | `correct_answer` | `int` | sim | Índice (0-based) da opção correta em `options`. |
-| `explanation` | `str` \| null | recomendado | Explica POR QUE a correta é correta e, quando útil, por que as outras erram. Cite o termo/API exato da doc. 1–4 frases. |
+| `explanation` | `str` \| null | recomendado | Explica POR QUE a correta é correta e, quando útil, por que as outras erram. Cite o termo/API exato da doc. 1–4 frases. Suporta markdown (veja abaixo). |
 | `difficulty` | `"easy"\|"medium"\|"hard"` \| null | não | Definido pelo usuário no momento da revisão, não na criação. Deixe `null`. |
+
+### Markdown e syntax highlighting
+
+Os campos `question`, `options` e `explanation` suportam markdown renderizado com syntax highlight. Use sempre que o conteúdo envolver código:
+
+- **Inline code**: `` `flush: 'pre'` ``, `` `watchEffect` ``, `` `SELECT * FROM` ``
+- **Code blocks na explanation** (indicar a linguagem):
+  ````
+  ```python
+  @cache
+  def fib(n): ...
+  ```
+  ````
+- Linguagens suportadas: `python`, `javascript`, `typescript`, `sql`, `bash`, `json`, `html`, `css`, entre outras (qualquer linguagem do highlight.js).
+- Em `question` e `options`, prefira inline code (`` ` `` ) — code blocks são mais adequados na `explanation`.
+- **Não usar markdown** para conteúdo puramente textual (não forçar `**bold**` desnecessariamente).
 
 Regras de qualidade:
 
@@ -46,6 +62,17 @@ Passos que o Claude deve seguir:
    - `explanation` curta justificando, com termos da doc.
 5. **Mostrar a lista** ao usuário pra revisar antes de seedar.
 6. **Seedar via API** (não escrever no SQLite direto).
+
+## Atualizar o snapshot
+
+Após cada seed bem-sucedido, atualizar `seeds/snapshot.json` e commitar:
+
+```bash
+curl -s http://localhost:8000/api/export > seeds/snapshot.json
+git add seeds/snapshot.json && git commit -m "snapshot: adiciona cards de <tema>"
+```
+
+Esse arquivo é o seed automático do banco em deploys novos — manter sempre atualizado.
 
 ## Como seedar
 

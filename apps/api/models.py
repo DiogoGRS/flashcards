@@ -19,3 +19,6 @@ class Card(SQLModel, table=True):
     next_review: datetime = Field(default_factory=utcnow, index=True)
     last_reviewed: Optional[datetime] = None
     created_at: datetime = Field(default_factory=utcnow)
+    ease_factor: float = Field(default=2.5)
+    repetitions: int = Field(default=0)
+    interval_days: int = Field(default=1)

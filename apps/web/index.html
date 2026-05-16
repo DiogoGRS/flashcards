@@ -5,21 +5,95 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>flashCards</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
   <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
-  <div x-data="flashApp()" x-init="boot()" class="max-w-6xl mx-auto p-6">
+<div x-data="flashApp()" x-init="boot()">
+
+  <!-- EDIT MODAL -->
+  <div
+    x-show="editCard"
+    x-cloak
+    class="fixed inset-0 bg-black/70 flex items-start justify-center z-50 p-4 overflow-y-auto"
+    @keydown.escape.window="editCard = null"
+  >
+    <div @click.stop class="bg-slate-900 rounded-lg p-6 w-full max-w-lg space-y-4 mt-8 mb-8">
+      <div class="flex justify-between items-center">
+        <h3 class="font-semibold">Editar card</h3>
+        <button @click="editCard = null" class="text-slate-400 hover:text-slate-200 text-xl leading-none">✕</button>
+      </div>
+
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Tópicos (separe com /)</label>
+        <input
+          x-model="editForm.topicsRaw"
+          class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Pergunta</label>
+        <textarea
+          x-model="editForm.question"
+          rows="2"
+          class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+        ></textarea>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Opções (radio = correta)</label>
+        <template x-for="(opt, i) in editForm.options" :key="i">
+          <div class="flex gap-2 mb-2">
+            <input type="radio" :value="i" x-model.number="editForm.correct_answer" class="accent-indigo-500 mt-3" />
+            <input
+              x-model="editForm.options[i]"
+              :placeholder="'opção ' + (i+1)"
+              class="flex-1 bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              type="button"
+              @click="editForm.options.splice(i, 1)"
+              x-show="editForm.options.length > 2"
+              class="text-rose-400 px-2"
+            >×</button>
+          </div>
+        </template>
+        <button type="button" @click="editForm.options.push('')" class="text-sm text-indigo-400 hover:text-indigo-300">
+          + adicionar opção
+        </button>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">Explicação (opcional)</label>
+        <textarea
+          x-model="editForm.explanation"
+          rows="3"
+          class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+        ></textarea>
+      </div>
+      <p x-show="editError" x-text="editError" class="text-rose-400 text-sm"></p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" @click="editCard = null" class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700">Cancelar</button>
+        <button type="button" @click="submitEdit()" class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div class="max-w-6xl mx-auto p-6">
     <header class="flex items-center justify-between mb-6">
       <h1 class="text-2xl font-bold tracking-tight">flashCards</h1>
       <nav class="flex gap-2">
         <button @click="view = 'review'" :class="tabClass('review')">Revisar</button>
         <button @click="view = 'browse'" :class="tabClass('browse')">Cards</button>
+        <button @click="view = 'stats'; loadStats()" :class="tabClass('stats')">Stats</button>
         <button @click="view = 'create'; resetForm()" :class="tabClass('create')">Novo</button>
       </nav>
     </header>
 
     <div class="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+      <!-- SIDEBAR -->
       <aside class="bg-slate-900 rounded-lg p-4 h-fit">
         <div class="flex items-center justify-between mb-3">
           <h2 class="font-semibold text-slate-300">Tópicos</h2>
@@ -35,7 +109,6 @@
         </template>
         <template x-for="[name, node] in Object.entries(topics)" :key="name">
           <div>
-            <template x-data="{ trail: [name], children: node }" x-init="$el.dataset.ready = '1'"></template>
             <div x-data="{ trail: [name], children: node._children, count: node._count }">
               <button
                 @click="selectTopic(trail.join('/'))"
@@ -83,16 +156,100 @@
 
         <!-- REVIEW -->
         <section x-show="view === 'review'">
-          <template x-if="dueCards.length === 0">
-            <div class="bg-slate-900 rounded-lg p-8 text-center">
-              <p class="text-slate-400">Nenhum card pendente para revisão. ✨</p>
+
+          <!-- LOBBY: tela inicial antes de começar -->
+          <div x-show="!sessionStarted" class="bg-slate-900 rounded-xl p-10 text-center space-y-8">
+            <div>
+              <h2 class="text-2xl font-bold text-slate-100 mb-2">Pronto para estudar?</h2>
+              <p class="text-sm text-slate-500" x-text="topicPath ? `Tópico: ${topicPath}` : 'Todos os tópicos'"></p>
+            </div>
+
+            <div class="flex justify-center gap-12">
+              <div>
+                <p class="text-4xl font-bold text-amber-400" x-text="dueTotal"></p>
+                <p class="text-xs text-slate-400 mt-1">para revisar</p>
+              </div>
+            </div>
+
+            <div x-show="dueTotal > 0">
+              <button
+                @click="startSession()"
+                class="px-8 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-colors"
+              >
+                Iniciar Revisão
+                <span class="text-base font-normal opacity-70 ml-1"
+                  x-text="'· ' + Math.min(dueTotal, sessionLimit) + ' cards'"
+                ></span>
+              </button>
+              <p x-show="dueTotal > sessionLimit" class="text-xs text-slate-500 mt-3"
+                x-text="`${dueTotal} cards disponíveis — sessão limitada a ${sessionLimit}`"
+              ></p>
+            </div>
+
+            <div x-show="dueTotal === 0" class="space-y-2">
+              <p class="text-4xl mb-2">✨</p>
+              <p class="text-slate-300 font-medium">Nenhum card pendente.</p>
+              <p class="text-sm text-slate-500">Volte amanhã ou adicione novos cards.</p>
+            </div>
+          </div>
+
+          <!-- SESSÃO ATIVA OU CONCLUÍDA -->
+          <div x-show="sessionStarted">
+
+          <!-- Sessão concluída -->
+          <template x-if="sessionDone && dueCards.length === 0">
+            <div class="bg-slate-900 rounded-lg p-8 text-center space-y-4">
+              <p class="text-3xl">✅</p>
+              <p class="text-xl font-semibold">Sessão concluída!</p>
+              <div class="flex justify-center gap-8 text-sm mt-2">
+                <div>
+                  <p class="text-slate-400">Revisados</p>
+                  <p class="text-2xl font-bold" x-text="sessionStats.total"></p>
+                </div>
+                <div>
+                  <p class="text-emerald-400">Corretos</p>
+                  <p class="text-2xl font-bold text-emerald-400" x-text="sessionStats.correct"></p>
+                </div>
+                <div>
+                  <p class="text-rose-400">Errados</p>
+                  <p class="text-2xl font-bold text-rose-400" x-text="sessionStats.wrong"></p>
+                </div>
+              </div>
+              <div class="flex justify-center gap-3 mt-2">
+                <button
+                  @click="startSession()"
+                  x-show="dueTotal > 0"
+                  class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm"
+                >Nova sessão</button>
+                <button
+                  @click="restartSession()"
+                  class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-sm"
+                >Voltar ao início</button>
+              </div>
             </div>
           </template>
+
+          <!-- Card atual -->
           <template x-if="dueCards.length > 0 && current">
             <div class="bg-slate-900 rounded-lg p-6">
-              <p class="text-xs uppercase tracking-wider text-slate-500 mb-2"
-                 x-text="(current.topics || []).join(' › ') || 'sem tópico'"></p>
-              <h2 class="text-xl font-medium mb-6" x-text="current.question"></h2>
+              <!-- Progresso -->
+              <div class="flex items-center gap-3 mb-5">
+                <span class="text-xs text-slate-500 tabular-nums" x-text="`${cardPosition} / ${sessionStats.total}`"></span>
+                <div class="flex-1 bg-slate-800 rounded-full h-1.5">
+                  <div
+                    class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
+                    :style="`width: ${progressPercent}%`"
+                  ></div>
+                </div>
+                <span class="text-xs text-slate-500 tabular-nums" x-text="`${progressPercent}%`"></span>
+              </div>
+
+              <div class="flex items-center justify-between mb-2">
+                <p class="text-xs uppercase tracking-wider text-slate-500"
+                   x-text="(current.topics || []).join(' › ') || 'sem tópico'"></p>
+                <button @click="deleteFromReview()" class="text-xs text-rose-400 hover:text-rose-300">excluir card</button>
+              </div>
+              <div class="text-xl font-medium mb-6 card-content" x-html="renderMdInline(current.question)"></div>
 
               <div class="grid gap-2 mb-6">
                 <template x-for="(opt, idx) in current.options" :key="idx">
@@ -100,12 +257,15 @@
                     @click="pickAnswer(idx)"
                     :disabled="answered"
                     :class="optionClass(idx)"
-                    class="w-full text-left p-3 rounded border transition"
-                    x-text="opt"
-                  ></button>
+                    class="w-full text-left p-3 rounded border transition flex items-center gap-3"
+                  >
+                    <kbd class="text-xs text-slate-500 font-mono w-4 shrink-0 text-center" x-text="idx + 1"></kbd>
+                    <span class="card-content" x-html="renderMdInline(opt)"></span>
+                  </button>
                 </template>
               </div>
 
+              <!-- Feedback -->
               <div
                 x-show="answered"
                 :class="selected === current.correct_answer
@@ -115,24 +275,29 @@
               >
                 <p class="font-semibold mb-1">
                   <span x-show="selected === current.correct_answer">Correto.</span>
-                  <span x-show="selected !== current.correct_answer">Errado.</span>
+                  <span x-show="selected !== current.correct_answer">
+                    Errado. Resposta: <span class="underline card-content" x-html="renderMdInline(current.options[current.correct_answer])"></span>
+                  </span>
                 </p>
-                <p class="text-sm whitespace-pre-wrap"
-                   x-text="current.explanation || 'Sem explicação cadastrada para este card.'"></p>
+                <div class="text-sm card-content"
+                     x-html="current.explanation ? renderMd(current.explanation) : 'Sem explicação cadastrada para este card.'"></div>
               </div>
 
+              <!-- Dificuldade -->
               <div x-show="answered" class="border-t border-slate-800 pt-4">
                 <p class="text-sm text-slate-400 mb-3">Quão difícil foi?</p>
-                <div class="flex gap-2">
-                  <button @click="submitReview('easy')" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500">Fácil (+7d)</button>
-                  <button @click="submitReview('medium')" class="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500">Médio (+3d)</button>
-                  <button @click="submitReview('hard')" class="px-4 py-2 rounded bg-rose-600 hover:bg-rose-500">Difícil (+1d)</button>
+                <div class="flex gap-2 flex-wrap">
+                  <button @click="submitReview('easy')" class="px-4 py-2 rounded bg-emerald-700 hover:bg-emerald-600 text-sm flex items-center gap-2">
+                    Fácil <kbd class="text-xs opacity-60 font-mono">[E]</kbd>
+                  </button>
+                  <button @click="submitReview('medium')" class="px-4 py-2 rounded bg-amber-700 hover:bg-amber-600 text-sm flex items-center gap-2">
+                    Médio <kbd class="text-xs opacity-60 font-mono">[M]</kbd>
+                  </button>
+                  <button @click="submitReview('hard')" class="px-4 py-2 rounded bg-rose-700 hover:bg-rose-600 text-sm flex items-center gap-2">
+                    Difícil <kbd class="text-xs opacity-60 font-mono">[D]</kbd>
+                  </button>
                 </div>
               </div>
-
-              <p class="text-xs text-slate-500 mt-4">
-                <span x-text="dueCards.length"></span> card(s) na fila
-              </p>
             </div>
           </template>
         </section>
@@ -145,22 +310,96 @@
               <div class="bg-slate-900 rounded-lg p-4">
                 <div class="flex justify-between items-start gap-3 mb-2">
                   <p class="text-xs text-slate-500" x-text="(card.topics || []).join(' › ') || 'sem tópico'"></p>
-                  <div class="flex gap-2 text-xs">
+                  <div class="flex gap-3 text-xs items-center shrink-0">
                     <span class="text-slate-500" x-text="'próx: ' + formatDate(card.next_review)"></span>
+                    <button @click="openEdit(card)" class="text-indigo-400 hover:text-indigo-300">editar</button>
                     <button @click="deleteCard(card.id)" class="text-rose-400 hover:text-rose-300">excluir</button>
                   </div>
                 </div>
-                <p class="font-medium mb-2" x-text="card.question"></p>
+                <div class="font-medium mb-2 card-content" x-html="renderMdInline(card.question)"></div>
                 <ul class="text-sm text-slate-400 space-y-1">
                   <template x-for="(opt, i) in card.options" :key="i">
-                    <li :class="i === card.correct_answer ? 'text-emerald-400' : ''">
-                      <span x-text="(i === card.correct_answer ? '✓ ' : '· ') + opt"></span>
+                    <li :class="i === card.correct_answer ? 'text-emerald-400' : ''" class="flex gap-1">
+                      <span x-text="i === card.correct_answer ? '✓' : '·'" class="shrink-0"></span>
+                      <span class="card-content" x-html="renderMdInline(opt)"></span>
                     </li>
                   </template>
                 </ul>
+                <div class="flex gap-4 mt-2 text-xs text-slate-600">
+                  <span x-text="'intervalo: ' + card.interval_days + 'd'"></span>
+                  <span x-text="'repetições: ' + card.repetitions"></span>
+                  <span :class="easeColor(card.ease_factor)" x-text="'EF: ' + card.ease_factor.toFixed(2)"></span>
+                </div>
               </div>
             </template>
           </div>
+        </section>
+
+        <!-- STATS -->
+        <section x-show="view === 'stats'">
+          <div x-show="!stats" class="text-slate-500 text-sm p-4">Carregando...</div>
+          <template x-if="stats">
+            <div class="space-y-6">
+              <div class="bg-slate-900 rounded-lg p-5">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="font-semibold text-slate-200">Visão Geral</h2>
+                  <button
+                    @click="exportCards()"
+                    class="text-xs px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  >Exportar JSON</button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div class="bg-slate-800 rounded p-3 text-center">
+                    <p class="text-xs text-slate-400 mb-1">Total</p>
+                    <p class="text-2xl font-bold" x-text="stats.total"></p>
+                  </div>
+                  <div class="bg-slate-800 rounded p-3 text-center">
+                    <p class="text-xs text-amber-400 mb-1">Para hoje</p>
+                    <p class="text-2xl font-bold text-amber-400" x-text="stats.due"></p>
+                  </div>
+                  <div class="bg-slate-800 rounded p-3 text-center">
+                    <p class="text-xs text-slate-400 mb-1">Novos</p>
+                    <p class="text-2xl font-bold" x-text="stats.new"></p>
+                  </div>
+                  <div class="bg-slate-800 rounded p-3 text-center">
+                    <p class="text-xs text-emerald-400 mb-1">Maduros</p>
+                    <p class="text-2xl font-bold text-emerald-400" x-text="stats.mature"></p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-slate-900 rounded-lg p-5">
+                <h2 class="font-semibold text-slate-200 mb-4">Por Tópico</h2>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="text-xs text-slate-500 border-b border-slate-800">
+                        <th class="text-left pb-2 pr-4 font-normal">Tópico</th>
+                        <th class="text-right pb-2 px-2 font-normal">Total</th>
+                        <th class="text-right pb-2 px-2 font-normal text-amber-400">Hoje</th>
+                        <th class="text-right pb-2 px-2 font-normal">Novos</th>
+                        <th class="text-right pb-2 px-2 font-normal text-emerald-400">Maduros</th>
+                        <th class="text-right pb-2 pl-2 font-normal">Facilidade</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="t in stats.topics" :key="t.path">
+                        <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                          <td class="py-2 pr-4 text-slate-300" x-text="t.path"></td>
+                          <td class="py-2 px-2 text-right" x-text="t.total"></td>
+                          <td class="py-2 px-2 text-right text-amber-400" x-text="t.due || '–'"></td>
+                          <td class="py-2 px-2 text-right text-slate-400" x-text="t.new || '–'"></td>
+                          <td class="py-2 px-2 text-right text-emerald-400" x-text="t.mature || '–'"></td>
+                          <td class="py-2 pl-2 text-right" :class="easeColor(t.avg_ease)" x-text="t.avg_ease.toFixed(2)"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="text-xs text-slate-600 mt-3">Maduros = intervalo ≥ 21 dias · Facilidade = ease factor médio (SM-2, ideal ≥ 2.5)</p>
+              </div>
+            </div>
+          </template>
         </section>
 
         <!-- CREATE -->
@@ -186,12 +425,7 @@
               <label class="block text-sm text-slate-400 mb-1">Opções (clique no radio para marcar a correta)</label>
               <template x-for="(opt, i) in form.options" :key="i">
                 <div class="flex gap-2 mb-2">
-                  <input
-                    type="radio"
-                    :value="i"
-                    x-model.number="form.correct_answer"
-                    class="accent-indigo-500"
-                  />
+                  <input type="radio" :value="i" x-model.number="form.correct_answer" class="accent-indigo-500 mt-3" />
                   <input
                     x-model="form.options[i]"
                     :placeholder="'opção ' + (i+1)"
@@ -214,7 +448,7 @@
               <textarea
                 x-model="form.explanation"
                 rows="3"
-                placeholder="exibida após responder, com fundo verde (acerto) ou vermelho (erro)"
+                placeholder="exibida após responder"
                 class="w-full bg-slate-800 rounded px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
               ></textarea>
             </div>
@@ -227,6 +461,7 @@
       </main>
     </div>
   </div>
+</div>
 
   <script src="/static/app.js"></script>
 </body>

@@ -29,6 +29,9 @@ def _to_out(card: Card) -> CardOut:
         next_review=_ensure_aware(card.next_review),
         last_reviewed=_ensure_aware(card.last_reviewed) if card.last_reviewed else None,
         created_at=_ensure_aware(card.created_at),
+        ease_factor=card.ease_factor if card.ease_factor is not None else 2.5,
+        repetitions=card.repetitions or 0,
+        interval_days=card.interval_days or 1,
     )
 
 
@@ -121,15 +124,64 @@ def review_card(card_id: int, payload: ReviewIn, session: Session = Depends(get_
     if not card:
         raise HTTPException(404, "card not found")
 
-    next_review, last_reviewed = schedule_next(payload.difficulty, payload.correct)
+    next_review, last_reviewed, ef, reps, interval = schedule_next(
+        payload.difficulty,
+        payload.correct,
+        card.ease_factor if card.ease_factor is not None else 2.5,
+        card.repetitions or 0,
+        card.interval_days or 1,
+    )
     card.next_review = next_review
     card.last_reviewed = last_reviewed
     card.difficulty = payload.difficulty
+    card.ease_factor = ef
+    card.repetitions = reps
+    card.interval_days = interval
 
     session.add(card)
     session.commit()
     session.refresh(card)
     return _to_out(card)
+
+
+@router.get("/export")
+def export_cards(session: Session = Depends(get_session)):
+    cards = session.exec(select(Card)).all()
+    return [
+        {
+            "topics": card.topics or [],
+            "question": card.question,
+            "options": card.options or [],
+            "correct_answer": card.correct_answer,
+            "explanation": card.explanation,
+            "difficulty": card.difficulty,
+        }
+        for card in cards
+    ]
+
+
+@router.get("/stats")
+def get_stats(session: Session = Depends(get_session)):
+    cards = session.exec(select(Card)).all()
+    now = utcnow()
+
+    def _stats(card_list):
+        total = len(card_list)
+        due = sum(1 for c in card_list if _ensure_aware(c.next_review) <= now)
+        new = sum(1 for c in card_list if c.last_reviewed is None)
+        mature = sum(1 for c in card_list if (c.interval_days or 1) >= 21)
+        avg_ef = round(sum(c.ease_factor or 2.5 for c in card_list) / total, 2) if total else 0.0
+        return {"total": total, "due": due, "new": new, "mature": mature, "avg_ease": avg_ef}
+
+    by_topic: dict[str, list] = {}
+    for card in cards:
+        path = "/".join(card.topics or []) or "(sem tópico)"
+        by_topic.setdefault(path, []).append(card)
+
+    return {
+        **_stats(cards),
+        "topics": [{"path": p, **_stats(cl)} for p, cl in sorted(by_topic.items())],
+    }
 
 
 @router.get("/topics")

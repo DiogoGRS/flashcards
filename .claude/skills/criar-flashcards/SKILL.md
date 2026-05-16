@@ -49,10 +49,16 @@ Se o usuário só passar o tema sem URL, peça a fonte antes de continuar — n�
    python3 .claude/skills/criar-flashcards/seed.py /tmp/flashcards-seed-<tema>.json
    ```
    O script faz POST por card e reporta sucesso/falha.
-9. **Confirmar** ao usuário quantos foram seedados e mostrar o filtro de tópico (`http://localhost:8000/?topic=<tema>`).
+9. **Atualizar o snapshot.** Após seedar com sucesso, rodar:
+   ```bash
+   curl -s http://localhost:8000/api/export > seeds/snapshot.json
+   ```
+   Commitar em seguida: `git add seeds/snapshot.json && git commit -m "snapshot: adiciona cards de <tema>"`.
+10. **Confirmar** ao usuário quantos foram seedados e mostrar o filtro de tópico (`http://localhost:8000/?topic=<tema>`).
 
 ## Regras importantes
 
+- **Markdown com syntax highlight**: os campos `question`, `options` e `explanation` renderizam markdown com highlight. Para código, use sempre `` `inline` `` ou blocos ` ```lang ``` `. Veja as regras completas em `spec-criacao-cards.md`.
 - **Sempre via API**, nunca `INSERT` direto no SQLite.
 - **Nunca** misturar fontes não oficiais sem avisar.
 - **Citações fiéis**: a explicação deve refletir o que a doc realmente diz, não interpretação livre.

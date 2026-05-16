@@ -44,6 +44,9 @@ class CardOut(BaseModel):
     next_review: datetime
     last_reviewed: Optional[datetime]
     created_at: datetime
+    ease_factor: float
+    repetitions: int
+    interval_days: int
 
 
 class ReviewIn(BaseModel):

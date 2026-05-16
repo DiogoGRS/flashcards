@@ -11,8 +11,17 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args)
 def _ensure_columns() -> None:
     with engine.begin() as conn:
         cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(card)").fetchall()}
-        if cols and "explanation" not in cols:
-            conn.execute(text("ALTER TABLE card ADD COLUMN explanation TEXT"))
+        if not cols:
+            return
+        migrations = [
+            ("explanation", "ALTER TABLE card ADD COLUMN explanation TEXT"),
+            ("ease_factor", "ALTER TABLE card ADD COLUMN ease_factor REAL DEFAULT 2.5"),
+            ("repetitions", "ALTER TABLE card ADD COLUMN repetitions INTEGER DEFAULT 0"),
+            ("interval_days", "ALTER TABLE card ADD COLUMN interval_days INTEGER DEFAULT 1"),
+        ]
+        for col, sql in migrations:
+            if col not in cols:
+                conn.execute(text(sql))
 
 
 def init_db() -> None:
