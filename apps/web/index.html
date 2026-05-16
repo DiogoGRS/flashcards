@@ -157,39 +157,36 @@
         <!-- REVIEW -->
         <section x-show="view === 'review'">
 
-          <!-- LOBBY: tela inicial antes de começar -->
-          <div x-show="!sessionStarted" class="bg-slate-900 rounded-xl p-10 text-center space-y-8">
-            <div>
-              <h2 class="text-2xl font-bold text-slate-100 mb-2">Pronto para estudar?</h2>
-              <p class="text-sm text-slate-500" x-text="topicPath ? `Tópico: ${topicPath}` : 'Todos os tópicos'"></p>
+          <!-- HOMEPAGE -->
+          <div x-show="!sessionStarted" class="flex flex-col items-center justify-center py-20 text-center space-y-10">
+            <div class="space-y-2">
+              <h2 class="text-4xl font-bold tracking-tight">flashCards</h2>
+              <p class="text-slate-400" x-text="topicPath ? `Tópico: ${topicPath}` : 'Todos os tópicos'"></p>
             </div>
 
-            <div class="flex justify-center gap-12">
+            <div x-show="dueTotal > 0" class="space-y-6">
               <div>
-                <p class="text-4xl font-bold text-amber-400" x-text="dueTotal"></p>
-                <p class="text-xs text-slate-400 mt-1">para revisar</p>
+                <p class="text-7xl font-bold text-indigo-400 tabular-nums" x-text="dueTotal"></p>
+                <p class="text-slate-400 mt-2">cards para revisar</p>
               </div>
-            </div>
-
-            <div x-show="dueTotal > 0">
               <button
                 @click="startSession()"
-                class="px-8 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-colors"
+                class="px-10 py-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-lg transition-colors shadow-lg"
               >
                 Iniciar Revisão
-                <span class="text-base font-normal opacity-70 ml-1"
+                <span class="font-normal opacity-70 ml-1"
                   x-text="'· ' + Math.min(dueTotal, sessionLimit) + ' cards'"
                 ></span>
               </button>
-              <p x-show="dueTotal > sessionLimit" class="text-xs text-slate-500 mt-3"
-                x-text="`${dueTotal} cards disponíveis — sessão limitada a ${sessionLimit}`"
+              <p x-show="dueTotal > sessionLimit" class="text-xs text-slate-500"
+                x-text="`${dueTotal} disponíveis — sessão limitada a ${sessionLimit}`"
               ></p>
             </div>
 
-            <div x-show="dueTotal === 0" class="space-y-2">
-              <p class="text-4xl mb-2">✨</p>
-              <p class="text-slate-300 font-medium">Nenhum card pendente.</p>
-              <p class="text-sm text-slate-500">Volte amanhã ou adicione novos cards.</p>
+            <div x-show="dueTotal === 0" class="space-y-3">
+              <p class="text-5xl">✨</p>
+              <p class="text-slate-300 font-medium text-lg">Tudo em dia!</p>
+              <p class="text-sm text-slate-500">Nenhum card pendente. Volte amanhã ou adicione novos cards.</p>
             </div>
           </div>
 
@@ -198,32 +195,42 @@
 
           <!-- Sessão concluída -->
           <template x-if="sessionDone && dueCards.length === 0">
-            <div class="bg-slate-900 rounded-lg p-8 text-center space-y-4">
-              <p class="text-3xl">✅</p>
-              <p class="text-xl font-semibold">Sessão concluída!</p>
-              <div class="flex justify-center gap-8 text-sm mt-2">
+            <div class="flex flex-col items-center justify-center py-20 text-center space-y-10">
+              <div class="space-y-2">
+                <p class="text-5xl mb-4">🎉</p>
+                <h2 class="text-3xl font-bold">Sessão concluída!</h2>
+                <p class="text-slate-400 text-sm" x-text="topicPath ? `Tópico: ${topicPath}` : 'Todos os tópicos'"></p>
+              </div>
+
+              <div class="flex gap-12">
                 <div>
-                  <p class="text-slate-400">Revisados</p>
-                  <p class="text-2xl font-bold" x-text="sessionStats.total"></p>
+                  <p class="text-5xl font-bold tabular-nums" x-text="sessionStats.total"></p>
+                  <p class="text-slate-400 text-sm mt-1">revisados</p>
                 </div>
                 <div>
-                  <p class="text-emerald-400">Corretos</p>
-                  <p class="text-2xl font-bold text-emerald-400" x-text="sessionStats.correct"></p>
+                  <p class="text-5xl font-bold text-emerald-400 tabular-nums" x-text="sessionStats.correct"></p>
+                  <p class="text-slate-400 text-sm mt-1">corretos</p>
                 </div>
                 <div>
-                  <p class="text-rose-400">Errados</p>
-                  <p class="text-2xl font-bold text-rose-400" x-text="sessionStats.wrong"></p>
+                  <p class="text-5xl font-bold text-rose-400 tabular-nums" x-text="sessionStats.wrong"></p>
+                  <p class="text-slate-400 text-sm mt-1">errados</p>
+                </div>
+                <div>
+                  <p class="text-5xl font-bold text-indigo-400 tabular-nums"
+                     x-text="sessionStats.total ? Math.round(sessionStats.correct / sessionStats.total * 100) + '%' : '—'"></p>
+                  <p class="text-slate-400 text-sm mt-1">aproveitamento</p>
                 </div>
               </div>
-              <div class="flex justify-center gap-3 mt-2">
+
+              <div class="flex gap-3">
                 <button
                   @click="startSession()"
                   x-show="dueTotal > 0"
-                  class="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm"
-                >Nova sessão</button>
+                  class="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-semibold transition-colors"
+                >Nova Revisão</button>
                 <button
                   @click="restartSession()"
-                  class="px-4 py-2 rounded bg-slate-800 hover:bg-slate-700 text-sm"
+                  class="px-8 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
                 >Voltar ao início</button>
               </div>
             </div>
@@ -249,7 +256,7 @@
                    x-text="(current.topics || []).join(' › ') || 'sem tópico'"></p>
                 <button @click="deleteFromReview()" class="text-xs text-rose-400 hover:text-rose-300">excluir card</button>
               </div>
-              <div class="text-xl font-medium mb-6 card-content" x-html="renderMdInline(current.question)"></div>
+              <div class="text-xl font-medium mb-6 card-content" x-html="renderMd(current.question)"></div>
 
               <div class="grid gap-2 mb-6">
                 <template x-for="(opt, idx) in current.options" :key="idx">
@@ -266,22 +273,23 @@
               </div>
 
               <!-- Feedback -->
-              <div
-                x-show="answered"
-                :class="selected === current.correct_answer
-                  ? 'border-emerald-500 bg-emerald-900/30 text-emerald-100'
-                  : 'border-rose-500 bg-rose-900/30 text-rose-100'"
-                class="border rounded p-4 mb-6"
-              >
-                <p class="font-semibold mb-1">
-                  <span x-show="selected === current.correct_answer">Correto.</span>
-                  <span x-show="selected !== current.correct_answer">
-                    Errado. Resposta: <span class="underline card-content" x-html="renderMdInline(current.options[current.correct_answer])"></span>
-                  </span>
-                </p>
-                <div class="text-sm card-content"
-                     x-html="current.explanation ? renderMd(current.explanation) : 'Sem explicação cadastrada para este card.'"></div>
-              </div>
+              <template x-if="answered && current">
+                <div
+                  :class="selected === current.correct_answer
+                    ? 'border-emerald-500 bg-emerald-900/30 text-emerald-100'
+                    : 'border-rose-500 bg-rose-900/30 text-rose-100'"
+                  class="border rounded p-4 mb-6"
+                >
+                  <p class="font-semibold mb-1">
+                    <span x-show="selected === current.correct_answer">Correto.</span>
+                    <span x-show="selected !== current.correct_answer">
+                      Errado. Resposta: <span class="underline card-content" x-html="renderMdInline(current.options[current.correct_answer])"></span>
+                    </span>
+                  </p>
+                  <div class="text-sm card-content"
+                       x-html="current.explanation ? renderMd(current.explanation) : 'Sem explicação cadastrada para este card.'"></div>
+                </div>
+              </template>
 
               <!-- Dificuldade -->
               <div x-show="answered" class="border-t border-slate-800 pt-4">
@@ -318,7 +326,7 @@
                     <button @click="deleteCard(card.id)" class="text-rose-400 hover:text-rose-300">excluir</button>
                   </div>
                 </div>
-                <div class="font-medium mb-2 card-content" x-html="renderMdInline(card.question)"></div>
+                <div class="font-medium mb-2 card-content" x-html="renderMd(card.question)"></div>
                 <ul class="text-sm text-slate-400 space-y-1">
                   <template x-for="(opt, i) in card.options" :key="i">
                     <li :class="i === card.correct_answer ? 'text-emerald-400' : ''" class="flex gap-1">

@@ -144,7 +144,7 @@ function flashApp() {
     },
 
     optionClass(idx) {
-      if (!this.answered) {
+      if (!this.answered || !this.current) {
         return "border-slate-700 hover:border-indigo-500 bg-slate-800";
       }
       const correct = this.current.correct_answer;
@@ -154,8 +154,16 @@ function flashApp() {
     },
 
     async submitReview(difficulty) {
+      if (!this.answered) return;
       const card = this.current;
+      if (!card) return;
       const correct = this.selected === card.correct_answer;
+
+      // Advance UI synchronously so a rapid second click can't re-enter
+      // this handler for the same card.
+      this.answered = false;
+      this.selected = null;
+      this.dueCards.splice(this.currentIdx, 1);
 
       if (correct) {
         this.sessionStats.correct++;
@@ -163,21 +171,17 @@ function flashApp() {
         this.sessionStats.wrong++;
       }
 
-      await fetch(`/api/cards/${card.id}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ difficulty, correct }),
-      });
-
-      this.dueCards.splice(this.currentIdx, 1);
-      this.selected = null;
-      this.answered = false;
-
       if (this.dueCards.length === 0) {
         this.sessionDone = true;
       } else if (this.currentIdx >= this.dueCards.length) {
         this.currentIdx = 0;
       }
+
+      await fetch(`/api/cards/${card.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty, correct }),
+      });
 
       await this.loadTopics();
     },
@@ -192,7 +196,7 @@ function flashApp() {
     async deleteCard(id) {
       if (!confirm("Excluir este card?")) return;
       await fetch(`/api/cards/${id}`, { method: "DELETE" });
-      await Promise.all([this.loadAll(), this.loadDue(), this.loadTopics()]);
+      await Promise.all([this.loadAll(), this.loadDueCounts(), this.loadTopics()]);
     },
 
     async deleteFromReview() {
@@ -335,7 +339,7 @@ function flashApp() {
       }
       this.resetForm();
       this.view = "browse";
-      await Promise.all([this.loadAll(), this.loadDue(), this.loadTopics()]);
+      await Promise.all([this.loadAll(), this.loadDueCounts(), this.loadTopics()]);
     },
 
     formatDate(iso) {

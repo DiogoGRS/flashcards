@@ -56,10 +56,20 @@ def health():
 
 app.include_router(router)
 
+
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 if WEB_DIR.exists():
-    app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/")
     def index():
-        return FileResponse(WEB_DIR / "index.html")
+        response = FileResponse(WEB_DIR / "index.html")
+        response.headers["Cache-Control"] = "no-store"
+        return response
